@@ -1,5 +1,5 @@
 
-export type Tab = 'product' | 'vto' | 'fashion' | 'combine-text';
+export type Tab = 'product' | 'vto' | 'fashion' | 'combine-text' | 'background';
 
 export interface ImageData {
   base64: string;
@@ -19,4 +19,15 @@ export interface GeneratedImageResult {
   imageUrl?: string;
   isLoading: boolean;
   error?: string;
+}
+
+export interface SuggestedTheme {
+  title: string;
+  description: string;
+}
+
+export interface ToastMessage {
+    id: number;
+    message: string;
+    type: 'success' | 'error' | 'info';
 }

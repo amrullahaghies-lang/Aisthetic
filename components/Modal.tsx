@@ -27,14 +27,14 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             onClick={onClose}
         >
             <div 
-                className="bg-white p-6 sm:p-8 rounded-2xl w-11/12 max-w-lg max-h-[90vh] overflow-y-auto transform transition-transform duration-300 scale-100"
+                className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl w-11/12 max-w-lg max-h-[90vh] overflow-y-auto transform transition-transform duration-300 scale-100"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{title}</h3>
                     <button 
                         onClick={onClose} 
-                        className="text-gray-400 hover:text-gray-900 text-3xl"
+                        className="text-gray-400 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 text-3xl"
                         aria-label="Close modal"
                     >
                         <Icon name="x" />

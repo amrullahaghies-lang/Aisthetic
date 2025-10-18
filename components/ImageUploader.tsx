@@ -2,6 +2,8 @@ import React, { useState, useCallback, useRef } from 'react';
 import type { ImageData } from '../types';
 import { Icon } from './icons';
 import type { IconName } from './icons';
+import { compressImage } from '../utils/imageUtils';
+import { Loader } from './Loader';
 
 interface ImageUploaderProps {
     onImageUpload: (imageData: ImageData | null) => void;
@@ -13,18 +15,29 @@ interface ImageUploaderProps {
 export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, iconName, label, id }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFile = useCallback((file: File) => {
+    const handleFile = useCallback(async (file: File) => {
         if (file && file.type.startsWith('image/')) {
+            setIsProcessing(true);
+            
+            // Generate a preview immediately from the original file
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const result = e.target?.result as string;
-                setPreview(result);
-                const base64 = result.split(',')[1];
-                onImageUpload({ base64, mimeType: file.type, name: file.name });
-            };
+            reader.onload = (e) => setPreview(e.target?.result as string);
             reader.readAsDataURL(file);
+
+            try {
+                const compressedImageData = await compressImage(file);
+                onImageUpload(compressedImageData);
+            } catch (error) {
+                console.error("Error compressing image:", error);
+                // Optionally show a toast notification here
+                onImageUpload(null);
+                setPreview(null);
+            } finally {
+                setIsProcessing(false);
+            }
         }
     }, [onImageUpload]);
 
@@ -74,15 +87,21 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, ico
         <div>
             <label 
                 htmlFor={id} 
-                className={`cursor-pointer border-2 border-dashed rounded-2xl text-center text-slate-500 p-4 flex flex-col items-center justify-center transition-all h-full min-h-[150px] ${isDragging ? 'border-cyan-500 bg-cyan-500/10 text-cyan-600' : 'border-slate-300 hover:border-slate-400'}`}
+                className={`relative cursor-pointer border-2 border-dashed rounded-2xl text-slate-500 dark:text-slate-400 p-4 flex flex-col items-center justify-center transition-all h-full min-h-[150px] ${isDragging ? 'border-cyan-500 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500'}`}
                 onDragEnter={(e) => dragHandler(e, true)}
                 onDragOver={(e) => dragHandler(e, true)}
                 onDragLeave={(e) => dragHandler(e, false)}
                 onDrop={handleDrop}
             >
-                <Icon name={iconName} className="w-10 h-10 mb-2 text-slate-400" />
+                <Icon name={iconName} className="w-10 h-10 mb-2 text-slate-400 dark:text-slate-500" />
                 <span className="font-semibold">{label}</span>
                  <span className="text-xs mt-1">Drag & Drop or Click</span>
+                 {isProcessing && (
+                    <div className="absolute inset-0 bg-white/80 dark:bg-slate-800/80 flex flex-col items-center justify-center rounded-2xl">
+                        <Loader />
+                        <span className="mt-2 text-sm font-semibold text-cyan-600 dark:text-cyan-400">Optimizing...</span>
+                    </div>
+                )}
             </label>
             <input 
                 type="file" 
@@ -90,7 +109,8 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, ico
                 ref={fileInputRef}
                 className="hidden" 
                 accept="image/png, image/jpeg, image/webp" 
-                onChange={handleFileChange} 
+                onChange={handleFileChange}
+                disabled={isProcessing}
             />
         </div>
     );

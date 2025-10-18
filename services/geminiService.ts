@@ -1,12 +1,11 @@
-
-import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
-import type { GeneratedIdea } from '../types';
+import { GoogleGenAI, Type, Modality } from "@google/genai";
+import type { GeneratedIdea, SuggestedTheme } from '../types';
 
 if (!process.env.API_KEY) {
-    console.error("API_KEY environment variable not set.");
+    throw new Error("API_KEY environment variable not set.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 const fileToGenerativePart = (base64: string, mimeType: string) => {
     return {
@@ -18,6 +17,7 @@ const fileToGenerativePart = (base64: string, mimeType: string) => {
 };
 
 export const generateProductDescription = async (productImage: { base64: string; mimeType: string }): Promise<string> => {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: {
@@ -34,6 +34,7 @@ export const generateProductDescription = async (productImage: { base64: string;
 };
 
 export const generateAdHeadline = async (adImage: { base64: string; mimeType: string }, description: string): Promise<string> => {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: {
@@ -55,6 +56,7 @@ export const generateProductPoses = async (
     modelImage: { base64: string; mimeType: string } | null,
     theme: string
 ): Promise<GeneratedIdea[]> => {
+    const ai = getAiClient();
     let userQuery = `Analyze this product. Product Description: "${description}"`;
     if (theme) {
         userQuery += `\nPhoto Theme: "${theme}"`;
@@ -96,6 +98,7 @@ export const generateImageFromPrompt = async (
     baseImage: { base64: string; mimeType: string },
     modelImage: { base64: string; mimeType: string } | null
 ): Promise<string> => {
+    const ai = getAiClient();
     const finalPrompt = `${prompt}, elegant, cinematic, professional product photography, dramatic lighting, 8k, photorealistic`;
     const parts = [
         { text: finalPrompt },
@@ -109,7 +112,6 @@ export const generateImageFromPrompt = async (
         model: 'gemini-2.5-flash-image',
         contents: { parts },
         config: {
-            // FIX: Use Modality.IMAGE enum for responseModalities
             responseModalities: [Modality.IMAGE]
         }
     });
@@ -124,6 +126,7 @@ export const generateSocialCaption = async (
     description: string,
     theme: string
 ): Promise<string> => {
+    const ai = getAiClient();
     const [header, base64Data] = imageUrl.split(',');
     const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
     
@@ -148,6 +151,7 @@ export const generateVideoPrompt = async (
     description: string,
     theme: string
 ): Promise<string> => {
+    const ai = getAiClient();
     const [header, base64Data] = imageUrl.split(',');
     const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
 
@@ -171,6 +175,7 @@ export const generateVirtualTryOn = async (
     productImage: { base64: string; mimeType: string },
     modelImage: { base64: string; mimeType: string }
 ): Promise<string> => {
+    const ai = getAiClient();
     const prompt = `Dengan menggunakan foto produk dan foto model yang tersedia, buatlah sebuah gambar fotorealistis baru di mana model tersebut sedang mengenakan atau menggunakan produk tersebut. Pastikan hasilnya berkualitas tinggi dan terlihat seperti sesi pemotretan profesional. Pertahankan penampilan model dan detail produk.`;
     
     const response = await ai.models.generateContent({
@@ -183,7 +188,6 @@ export const generateVirtualTryOn = async (
             ]
         },
         config: {
-            // FIX: Use Modality.IMAGE enum for responseModalities
             responseModalities: [Modality.IMAGE]
         }
     });
@@ -197,6 +201,7 @@ export const generateFashionPose = async (
     modelImage: { base64: string; mimeType: string },
     poseDescription: string
 ): Promise<string> => {
+    const ai = getAiClient();
     const prompt = `Berdasarkan gambar model yang disediakan, hasilkan gambar baru dengan model yang melakukan pose fesyen sesuai deskripsi berikut: '${poseDescription}'. Jangan mengubah pakaian, latar belakang, atau properti apa pun. Hanya ubah pose model.`;
     
     const response = await ai.models.generateContent({
@@ -208,7 +213,6 @@ export const generateFashionPose = async (
             ]
         },
         config: {
-            // FIX: Use Modality.IMAGE enum for responseModalities
             responseModalities: [Modality.IMAGE]
         }
     });
@@ -225,6 +229,7 @@ export const getAdVariations = async (
     description: string,
     theme: string
 ): Promise<GeneratedIdea[]> => {
+    const ai = getAiClient();
     let userQuery = `Headline: "${headline}"\nDescription: "${description}"`;
     if (theme) {
         userQuery += `\nAd Theme: "${theme}"`;
@@ -263,6 +268,7 @@ export const generateAdImageWithText = async (
     headline: string,
     description: string
 ): Promise<string> => {
+    const ai = getAiClient();
     const finalPrompt = `${prompt}. The headline text to add is: "${headline}". A key phrase from the description to add is: "${description}". Ensure the text is clearly visible and beautifully integrated.`;
     const parts = [
         { text: finalPrompt },
@@ -273,7 +279,6 @@ export const generateAdImageWithText = async (
         model: 'gemini-2.5-flash-image',
         contents: { parts },
         config: {
-            // FIX: Use Modality.IMAGE enum for responseModalities
             responseModalities: [Modality.IMAGE]
         }
     });
@@ -281,4 +286,49 @@ export const generateAdImageWithText = async (
     const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
     if (!imagePart?.inlineData) throw new Error("No image data in response");
     return imagePart.inlineData.data;
+};
+
+export const changeImageBackground = async (
+    productImage: { base64: string; mimeType: string },
+    backgroundPrompt: string
+): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `Carefully analyze the provided image to identify the main subject. Do not change the subject. Replace the original background with a new one based on this description: '${backgroundPrompt}'. The final image should be photorealistic and seamlessly blended.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+            parts: [
+                { text: prompt },
+                fileToGenerativePart(productImage.base64, productImage.mimeType)
+            ]
+        },
+        config: {
+            responseModalities: [Modality.IMAGE]
+        }
+    });
+
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (!imagePart?.inlineData) throw new Error("No image data in response");
+    return imagePart.inlineData.data;
+};
+
+export const suggestThemes = async (productCategory: string): Promise<SuggestedTheme[]> => {
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Based on current visual trends for e-commerce, suggest 5 creative and distinct photography themes for the product category: "${productCategory}".`,
+        config: {
+            tools: [{googleSearch: {}}],
+            systemInstruction: "You are an expert creative director and market trend analyst. Based on real-time search trends, generate 5 distinct, trending, and visually appealing photo themes for the given product category. For each theme, provide a short, catchy title (in English) and a one-sentence description of the aesthetic (in English). Respond ONLY with a valid JSON array of objects.",
+        }
+    });
+
+    let jsonString = response.text.trim();
+    const jsonMatch = jsonString.match(/```json\n([\s\S]*?)\n```/);
+    if (jsonMatch) {
+      jsonString = jsonMatch[1];
+    }
+
+    return JSON.parse(jsonString);
 };

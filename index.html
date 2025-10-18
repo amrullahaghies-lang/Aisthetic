@@ -7,7 +7,17 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script>
+    // FOUC Prevention Script
+    (function() {
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
@@ -35,10 +45,21 @@
     <style>
         body {
             font-family: 'Nunito Sans', sans-serif;
-            background-color: #f8fafc; /* Lighter gray */
-            color: #1e293b; /* Slate 800 */
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+        }
+        /* Light mode default */
+        body {
+            background-color: #f8fafc; /* gray-50 */
+            color: #1e293b; /* Slate 800 */
+        }
+        /* Dark mode overrides */
+        .dark body {
+            background-color: #0f172a; /* slate-900 */
+            color: #e2e8f0; /* slate-200 */
+        }
+        .shadow-t-lg {
+            box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.1), 0 -4px 6px -4px rgb(0 0 0 / 0.1);
         }
     </style>
 <script type="importmap">
@@ -53,7 +74,7 @@
 }
 </script>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-slate-900">
     <div id="root"></div>
 </body>
 </html>

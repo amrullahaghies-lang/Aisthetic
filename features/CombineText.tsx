@@ -1,8 +1,11 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { ImageUploader } from '../components/ImageUploader';
 import { Loader } from '../components/Loader';
 import { Icon } from '../components/icons';
 import { Modal } from '../components/Modal';
+import { Accordion } from '../components/Accordion';
+import { ResultCard } from '../components/ResultCard';
+import { useNotification } from '../contexts/NotificationContext';
 import {
     getAdVariations,
     generateAdHeadline,
@@ -26,6 +29,14 @@ const CombineText: React.FC = () => {
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState({ title: '', body: <></> });
+    
+    const [openSection, setOpenSection] = useState('ad-image');
+    const resultsRef = useRef<HTMLDivElement>(null);
+    const { addToast } = useNotification();
+
+    const handleToggleSection = (id: string) => {
+        setOpenSection(prev => (prev === id ? '' : id));
+    };
 
     const canGenerate = useMemo(() => {
         return adImage && description.trim() && headline.trim() && !isGenerating;
@@ -39,7 +50,7 @@ const CombineText: React.FC = () => {
             setDescription(desc);
         } catch (error) {
             console.error("Error generating description:", error);
-            setDescription("Failed to generate description.");
+            addToast("Failed to generate description.", 'error');
         } finally {
             setIsDescLoading(false);
         }
@@ -53,7 +64,7 @@ const CombineText: React.FC = () => {
             setHeadline(head);
         } catch (error) {
             console.error("Error generating headline:", error);
-            setHeadline("Failed to generate headline.");
+            addToast("Failed to generate headline.", 'error');
         } finally {
             setIsHeadlineLoading(false);
         }
@@ -69,6 +80,12 @@ const CombineText: React.FC = () => {
         setIsGenerating(true);
         setStatus('Analyzing...');
         setResults([]);
+        
+        if (window.innerWidth < 1024) { 
+            setTimeout(() => {
+                resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
 
         try {
             const variations = await getAdVariations(adImage, headline, description, theme);
@@ -95,6 +112,7 @@ const CombineText: React.FC = () => {
 
         } catch (error) {
             console.error("Error during ad generation process:", error);
+            addToast('An error occurred during generation. Please try again.', 'error');
         } finally {
             setIsGenerating(false);
             setStatus('Generate 6 Ad Creatives');
@@ -112,6 +130,7 @@ const CombineText: React.FC = () => {
             setResults(prev => prev.map(r => r.id === result.id ? { ...r, imageUrl: `data:image/png;base64,${base64Data}`, isLoading: false } : r));
         } catch (error) {
             console.error("Error regenerating ad image:", error);
+            addToast('Failed to regenerate the image.', 'error');
             setResults(prev => prev.map(r => r.id === result.id ? { ...r, error: 'Failed to regenerate.', isLoading: false } : r));
         }
     };
@@ -131,12 +150,12 @@ const CombineText: React.FC = () => {
              <div className="space-y-4">
                 {result.imageUrl && <img src={result.imageUrl} className="rounded-xl w-full mb-4" alt="Preview"/>}
                 <div>
-                    <label htmlFor="modal-headline" className="block text-sm font-medium text-slate-700 mb-1">Headline</label>
-                    <textarea id="modal-headline" rows={2} value={modalHeadline} onChange={(e) => setModalHeadline(e.target.value)} className="w-full p-2 bg-slate-100 border border-slate-300 rounded-xl"/>
+                    <label htmlFor="modal-headline" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Headline</label>
+                    <textarea id="modal-headline" rows={2} value={modalHeadline} onChange={(e) => setModalHeadline(e.target.value)} className="w-full p-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl"/>
                 </div>
                 <div>
-                    <label htmlFor="modal-desc" className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                    <textarea id="modal-desc" rows={3} value={modalDescription} onChange={(e) => setModalDescription(e.target.value)} className="w-full p-2 bg-slate-100 border border-slate-300 rounded-xl"/>
+                    <label htmlFor="modal-desc" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                    <textarea id="modal-desc" rows={3} value={modalDescription} onChange={(e) => setModalDescription(e.target.value)} className="w-full p-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl"/>
                 </div>
                 <button onClick={onRegenerateClick} disabled={isRegenerating} className="w-full bg-cyan-500 text-white font-bold py-2 px-4 rounded-xl flex items-center justify-center hover:bg-cyan-600 disabled:bg-slate-300 focus:ring-4 focus:ring-cyan-500/50">
                     {isRegenerating ? <Loader /> : 'Regenerate Image'}
@@ -149,77 +168,82 @@ const CombineText: React.FC = () => {
         showModal(`Edit Ad: ${result.title}`, <EditModalBody result={result} />);
     };
     
-    const ResultCard: React.FC<{ result: GeneratedImageResult }> = ({ result }) => (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-lg p-4 flex flex-col justify-between transition-all hover:shadow-cyan-500/20 hover:-translate-y-1">
-            <h3 className="text-base font-bold text-slate-800 mb-3 truncate">{result.title}</h3>
-            <div className="aspect-square bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden">
-                {result.isLoading && <Loader size="lg" />}
-                {result.error && <p className="text-xs text-red-600 p-2 text-center font-semibold">{result.error}</p>}
-                {result.imageUrl && (
-                     <div className="relative w-full h-full group">
-                        <img src={result.imageUrl} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt={result.title} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
-                           <button onClick={() => handleEditClick(result)} className="bg-white/90 text-slate-700 p-2 rounded-full hover:bg-white hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Edit & Regenerate">
-                                <Icon name="edit" className="h-5 w-5" />
-                            </button>
-                             <a href={result.imageUrl} download={`aisthetic_ad_${result.title.replace(/\s+/g, '_')}.png`} className="bg-white/90 text-slate-700 p-2 rounded-full hover:bg-white hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Download Image">
-                                <Icon name="download" className="h-5 w-5" />
-                            </a>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-    
     return (
       <>
         <main className="flex flex-col lg:flex-row gap-8">
-            <div className="bg-white border border-gray-200 rounded-3xl shadow-xl p-6 w-full lg:w-1/3 lg:max-w-md flex-shrink-0 self-start">
-                <div className="flex flex-col gap-6">
-                    <div>
-                        <h2 className="text-xl font-bold mb-3 text-slate-800">1. Upload Base Image</h2>
-                        <ImageUploader id="ad-image-ct" onImageUpload={setAdImage} iconName="imagePlus" label="Upload Ad Image" />
-                    </div>
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <h2 className="text-xl font-bold text-slate-800">2. Ad Description</h2>
-                            <button onClick={handleGenerateDescription} disabled={!adImage || isDescLoading} className="bg-cyan-50 text-cyan-700 text-xs font-bold py-1 px-3 rounded-full flex items-center hover:bg-cyan-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
+            <div className="bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-3xl shadow-xl dark:shadow-slate-900/50 p-6 w-full lg:w-1/3 lg:max-w-md flex-shrink-0 self-start">
+                <div className="flex flex-col">
+                    <Accordion
+                        id="ad-image"
+                        title="1. Upload Base Image"
+                        isOpen={openSection === 'ad-image'}
+                        onToggle={handleToggleSection}
+                    >
+                        <ImageUploader id="ad-image-ct" onImageUpload={(img) => {
+                            setAdImage(img);
+                            if (img) handleToggleSection('ad-desc');
+                        }} iconName="imagePlus" label="Upload Ad Image" />
+                    </Accordion>
+                    <Accordion
+                        id="ad-desc"
+                        title="2. Ad Description"
+                        isOpen={openSection === 'ad-desc'}
+                        onToggle={handleToggleSection}
+                    >
+                         <div className="flex justify-end mb-2">
+                            <button onClick={handleGenerateDescription} disabled={!adImage || isDescLoading} className="bg-cyan-50 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300 text-xs font-bold py-1 px-3 rounded-full flex items-center hover:bg-cyan-100 dark:hover:bg-cyan-500/30 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:disabled:bg-slate-700 dark:disabled:text-slate-500">
                                 {isDescLoading ? <Loader size="sm" /> : <>✨ Auto-generate</>}
                             </button>
                         </div>
-                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full p-3 bg-slate-100 border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" placeholder="Describe your product or offer..."></textarea>
-                    </div>
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <h2 className="text-xl font-bold text-slate-800">3. Headline / Hook</h2>
-                             <button onClick={handleGenerateHeadline} disabled={!adImage || !description.trim() || isHeadlineLoading} className="bg-cyan-50 text-cyan-700 text-xs font-bold py-1 px-3 rounded-full flex items-center hover:bg-cyan-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
+                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full p-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition dark:placeholder-slate-400" placeholder="Describe your product or offer..."></textarea>
+                    </Accordion>
+                    <Accordion
+                        id="ad-headline"
+                        title="3. Headline / Hook"
+                        isOpen={openSection === 'ad-headline'}
+                        onToggle={handleToggleSection}
+                    >
+                        <div className="flex justify-end mb-2">
+                             <button onClick={handleGenerateHeadline} disabled={!adImage || !description.trim() || isHeadlineLoading} className="bg-cyan-50 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300 text-xs font-bold py-1 px-3 rounded-full flex items-center hover:bg-cyan-100 dark:hover:bg-cyan-500/30 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:disabled:bg-slate-700 dark:disabled:text-slate-500">
                                 {isHeadlineLoading ? <Loader size="sm" /> : <>✨ Auto-generate</>}
                             </button>
                         </div>
-                        <textarea value={headline} onChange={(e) => setHeadline(e.target.value)} rows={2} className="w-full p-3 bg-slate-100 border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" placeholder="Write your catchy headline here..."></textarea>
-                    </div>
-                     <div>
-                        <h2 className="text-xl font-bold mb-3 text-slate-800">4. Ad Theme <span className="text-sm text-slate-500 font-medium">(Optional)</span></h2>
-                        <textarea value={theme} onChange={(e) => setTheme(e.target.value)} rows={2} className="w-full p-3 bg-slate-100 border border-slate-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" placeholder="e.g., Elegant & luxurious, colorful & fun..."></textarea>
-                    </div>
-                    <button onClick={handleGenerate} disabled={!canGenerate} className="w-full bg-cyan-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center text-lg hover:bg-cyan-600 disabled:bg-slate-300 disabled:cursor-not-allowed focus:ring-4 focus:ring-cyan-500/50 transition-all duration-200 shadow-lg shadow-cyan-500/30">
-                         {isGenerating ? <><Loader /> <span className="ml-3">{status}</span></> : <span>{status}</span>}
-                    </button>
+                        <textarea value={headline} onChange={(e) => setHeadline(e.target.value)} rows={2} className="w-full p-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition dark:placeholder-slate-400" placeholder="Write your catchy headline here..."></textarea>
+                    </Accordion>
+                    <Accordion
+                        id="ad-theme"
+                        title={<>4. Ad Theme <span className="text-base text-slate-500 dark:text-slate-400 font-medium">(Optional)</span></>}
+                        isOpen={openSection === 'ad-theme'}
+                        onToggle={handleToggleSection}
+                    >
+                        <textarea value={theme} onChange={(e) => setTheme(e.target.value)} rows={2} className="w-full p-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition dark:placeholder-slate-400" placeholder="e.g., Elegant & luxurious, colorful & fun..."></textarea>
+                    </Accordion>
                 </div>
+                <button onClick={handleGenerate} disabled={!canGenerate} className="w-full bg-cyan-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center text-lg hover:bg-cyan-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed focus:ring-4 focus:ring-cyan-500/50 transition-all duration-200 shadow-lg shadow-cyan-500/30 mt-6">
+                     {isGenerating ? <><Loader /> <span className="ml-3">{status}</span></> : <span>{status}</span>}
+                </button>
             </div>
 
-            <div className="flex-grow">
+            <div className="flex-grow" ref={resultsRef}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                      {results.length > 0 ? (
-                        results.map(r => <ResultCard key={r.id} result={r} />)
+                        results.map((r, i) => (
+                            <ResultCard key={r.id} result={r} index={i}>
+                                <button onClick={() => handleEditClick(r)} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Edit & Regenerate">
+                                    <Icon name="edit" className="h-5 w-5" />
+                                </button>
+                                 <a href={r.imageUrl} download={`aisthetic_ad_${r.title.replace(/\s+/g, '_')}.png`} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Download Image">
+                                    <Icon name="download" className="h-5 w-5" />
+                                </a>
+                            </ResultCard>
+                        ))
                     ) : (
                         Array.from({ length: 6 }).map((_, i) => (
-                           <div key={i} className="bg-white border border-gray-200 rounded-2xl shadow-lg p-4 flex flex-col justify-between">
-                                <div className="h-5 bg-slate-200 rounded w-3/4 mb-4 animate-pulse"></div>
-                                <div className="mt-4 aspect-square bg-slate-200 rounded-xl animate-pulse"></div>
-                            </div>
+                           <div key={i} className="bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-lg p-4 flex flex-col justify-center items-center aspect-square animate-pulse">
+                               <Icon name="wand" className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-2" />
+                               <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                               <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mt-2"></div>
+                           </div>
                         ))
                     )}
                 </div>
