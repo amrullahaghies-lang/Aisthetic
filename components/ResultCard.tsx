@@ -33,7 +33,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, children, index 
             style={{ transitionDelay: `${index * 80}ms` }}
         >
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-3 truncate">{result.title}</h3>
-            <div className="aspect-square bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+            <div className="aspect-square bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center overflow-hidden relative">
                 {result.isLoading && <Loader size="lg" />}
                 {result.error && <p className="text-xs text-red-600 dark:text-red-400 p-2 text-center font-semibold">{result.error}</p>}
                 {result.imageUrl && (
@@ -43,6 +43,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, children, index 
                         <div className="absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
                            {children}
                         </div>
+                    </div>
+                )}
+                {result.isUpscaling && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                        <Loader size="md" />
+                        <p className="text-white text-sm font-semibold mt-2">Upscaling to HD...</p>
                     </div>
                 )}
             </div>

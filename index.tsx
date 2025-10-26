@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { BrandProvider } from './contexts/BrandContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,7 +15,9 @@ root.render(
   <React.StrictMode>
     <ThemeProvider>
       <NotificationProvider>
-        <App />
+        <BrandProvider>
+          <App />
+        </BrandProvider>
       </NotificationProvider>
     </ThemeProvider>
   </React.StrictMode>

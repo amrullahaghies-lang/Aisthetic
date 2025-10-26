@@ -37,12 +37,25 @@
           },
           fontFamily: {
             sans: ['Nunito Sans', 'sans-serif'],
+          },
+          keyframes: {
+            'fade-in': {
+              '0%': { opacity: '0', transform: 'translateY(10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+          },
+          animation: {
+            'fade-in': 'fade-in 0.5s ease-out forwards',
           }
         }
       }
     }
   </script>
     <style>
+        :root {
+            --brand-primary: #00B8C6;
+        }
+
         body {
             font-family: 'Nunito Sans', sans-serif;
             -webkit-font-smoothing: antialiased;
@@ -52,14 +65,36 @@
         body {
             background-color: #f8fafc; /* gray-50 */
             color: #1e293b; /* Slate 800 */
+            background-image: radial-gradient(circle at 100% 0%, #e0f2fe 0%, #f8fafc 40%);
         }
         /* Dark mode overrides */
         .dark body {
-            background-color: #0f172a; /* slate-900 */
+            background-color: #020617; /* slate-950 */
             color: #e2e8f0; /* slate-200 */
+            background-image: radial-gradient(circle at 100% 0%, #1e293b 0%, #020617 40%);
         }
         .shadow-t-lg {
-            box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.1), 0 -4px 6px -4px rgb(0 0 0 / 0.1);
+            box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.05), 0 -4px 6px -4px rgb(0 0 0 / 0.05);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
         }
     </style>
 <script type="importmap">
@@ -73,8 +108,10 @@
   }
 }
 </script>
+<!-- Pustaka JSZip untuk membuat file zip, digunakan di AI Voice Studio -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
-<body class="bg-gray-50 dark:bg-slate-900">
+<body class="bg-gray-50 dark:bg-slate-950">
     <div id="root"></div>
 </body>
 </html>

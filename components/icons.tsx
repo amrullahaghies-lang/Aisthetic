@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-    Image, ShoppingBag, Sparkles, Type, UploadCloud, Download, CloudUpload, ImagePlus, User, Box, Wand, Edit, Copy, Video, PenSquare, X, ChevronDown, Layers, Lightbulb, CheckCircle2, AlertTriangle, Info, Moon, Sun, PanelLeftClose, PanelLeftOpen
+    Image, ShoppingBag, Sparkles, Type, UploadCloud, Download, CloudUpload, ImagePlus, User, Box, Wand, Edit, Copy, Video, PenSquare, X, ChevronDown, Layers, Lightbulb, CheckCircle2, AlertTriangle, Info, Moon, Sun, PanelLeftClose, PanelLeftOpen, Mic, Play, FileArchive, Palette, Zap, Menu
 } from 'lucide-react';
 
 const iconMap = {
@@ -30,6 +30,12 @@ const iconMap = {
     sun: Sun,
     panelLeftClose: PanelLeftClose,
     panelLeftOpen: PanelLeftOpen,
+    mic: Mic,
+    play: Play,
+    fileArchive: FileArchive,
+    palette: Palette,
+    zap: Zap,
+    menu: Menu,
 };
 
 export type IconName = keyof typeof iconMap;

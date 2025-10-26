@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { ImageData } from '../types';
-import { generateFashionPose } from '../services/geminiService';
+import { generateFashionPose, upscaleImage } from '../services/geminiService';
 import { Loader } from '../components/Loader';
 import { Icon } from '../components/icons';
 import { ImageUploader } from '../components/ImageUploader';
@@ -11,6 +11,7 @@ const FashionPose: React.FC = () => {
     const [poseInput, setPoseInput] = useState('');
     const [resultImage, setResultImage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isUpscaling, setIsUpscaling] = useState(false);
     const { addToast } = useNotification();
 
     const canGenerate = useMemo(() => modelImage && poseInput.trim() && !isLoading, [modelImage, poseInput, isLoading]);
@@ -30,6 +31,24 @@ const FashionPose: React.FC = () => {
         }
     };
     
+     const handleUpscale = async () => {
+        if (!resultImage) return;
+        setIsUpscaling(true);
+        try {
+            const [header, base64Data] = resultImage.split(',');
+            const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
+            const originalPrompt = `Model in a new pose: ${poseInput}`;
+            const upscaledBase64 = await upscaleImage({ base64: base64Data, mimeType }, originalPrompt);
+            setResultImage(`data:image/png;base64,${upscaledBase64}`);
+            addToast('Image upscaled to HD!', 'success');
+        } catch (error) {
+            console.error("Error upscaling image:", error);
+            addToast('Failed to upscale image. Please try again.', 'error');
+        } finally {
+            setIsUpscaling(false);
+        }
+    };
+
     const ResultCard: React.FC = () => {
         let content;
         if (isLoading) {
@@ -42,8 +61,20 @@ const FashionPose: React.FC = () => {
         } else if (resultImage) {
             content = (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-700 transition-all shadow-lg">
-                    <img src={resultImage} alt={`Pose: ${poseInput}`} className="w-full h-auto object-cover aspect-[3/4]" />
-                    <div className="p-3 text-center bg-slate-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700">
+                    <div className="relative">
+                        <img src={resultImage} alt={`Pose: ${poseInput}`} className="w-full h-auto object-cover aspect-[3/4]" />
+                        {isUpscaling && (
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                                <Loader size="md" />
+                                <p className="text-white text-sm font-semibold mt-2">Upscaling to HD...</p>
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-700 flex justify-center items-center gap-3">
+                        <button onClick={handleUpscale} disabled={isUpscaling} className="inline-flex items-center bg-slate-600 text-white text-sm font-semibold py-2 px-4 rounded-xl hover:bg-slate-700 transition-colors shadow-md disabled:opacity-50">
+                            {isUpscaling ? <Loader size="sm" className="mr-2" /> : <Icon name="wand" className="w-4 h-4 mr-2" />}
+                            {isUpscaling ? 'Upscaling...' : 'Tingkatkan ke HD'}
+                        </button>
                         <a href={resultImage} download={`aisthetic_pose_${poseInput.replace(/\s/g, '_')}.png`} className="inline-flex items-center bg-cyan-500 text-white text-sm font-semibold py-2 px-4 rounded-xl hover:bg-cyan-600 transition-colors shadow-md shadow-cyan-500/20">
                             <Icon name="download" className="w-4 h-4 mr-2" />
                             Download

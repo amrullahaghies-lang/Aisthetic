@@ -6,11 +6,13 @@ import { Modal } from '../components/Modal';
 import { Accordion } from '../components/Accordion';
 import { ResultCard } from '../components/ResultCard';
 import { useNotification } from '../contexts/NotificationContext';
+import { useBrand } from '../contexts/BrandContext';
 import {
     getAdVariations,
     generateAdHeadline,
     generateAdImageWithText,
-    generateProductDescription
+    generateProductDescription,
+    upscaleImage,
 } from '../services/geminiService';
 import type { ImageData, GeneratedImageResult } from '../types';
 
@@ -33,6 +35,7 @@ const CombineText: React.FC = () => {
     const [openSection, setOpenSection] = useState('ad-image');
     const resultsRef = useRef<HTMLDivElement>(null);
     const { addToast } = useNotification();
+    const { brandIdentity } = useBrand();
 
     const handleToggleSection = (id: string) => {
         setOpenSection(prev => (prev === id ? '' : id));
@@ -88,7 +91,7 @@ const CombineText: React.FC = () => {
         }
 
         try {
-            const variations = await getAdVariations(adImage, headline, description, theme);
+            const variations = await getAdVariations(adImage, headline, description, theme, brandIdentity);
             setStatus('Creating visuals...');
             const initialResults = variations.map((idea, index) => ({
                 id: index,
@@ -119,6 +122,26 @@ const CombineText: React.FC = () => {
         }
     };
     
+    const handleUpscale = async (result: GeneratedImageResult) => {
+        if (!result.imageUrl) {
+            addToast('Image not available for upscaling.', 'error');
+            return;
+        }
+        setResults(prev => prev.map(r => r.id === result.id ? { ...r, isUpscaling: true } : r));
+        try {
+            const [header, base64Data] = result.imageUrl.split(',');
+            const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
+
+            const upscaledBase64 = await upscaleImage({ base64: base64Data, mimeType }, result.prompt);
+            setResults(prev => prev.map(r => r.id === result.id ? { ...r, imageUrl: `data:image/png;base64,${upscaledBase64}`, isUpscaling: false } : r));
+            addToast('Image upscaled to HD!', 'success');
+        } catch (error) {
+            console.error("Error upscaling image:", error);
+            addToast('Failed to upscale image. Please try again.', 'error');
+            setResults(prev => prev.map(r => r.id === result.id ? { ...r, isUpscaling: false } : r));
+        }
+    };
+
     const handleEditAndRegenerate = async (result: GeneratedImageResult, newHeadline: string, newDescription: string) => {
         if (!adImage) return;
 
@@ -229,6 +252,9 @@ const CombineText: React.FC = () => {
                      {results.length > 0 ? (
                         results.map((r, i) => (
                             <ResultCard key={r.id} result={r} index={i}>
+                                <button onClick={() => handleUpscale(r)} disabled={r.isUpscaling || r.isLoading} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md disabled:opacity-50" title="Tingkatkan ke HD">
+                                    <Icon name="wand" className="h-5 w-5" />
+                                </button>
                                 <button onClick={() => handleEditClick(r)} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Edit & Regenerate">
                                     <Icon name="edit" className="h-5 w-5" />
                                 </button>

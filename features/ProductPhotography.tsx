@@ -6,13 +6,15 @@ import { Modal } from '../components/Modal';
 import { Accordion } from '../components/Accordion';
 import { ResultCard } from '../components/ResultCard';
 import { useNotification } from '../contexts/NotificationContext';
+import { useBrand } from '../contexts/BrandContext';
 import {
     generateProductDescription,
     generateProductPoses,
     generateImageFromPrompt,
     generateSocialCaption,
-    generateVideoPrompt,
+    generateVideoFromImage,
     suggestThemes,
+    upscaleImage,
 } from '../services/geminiService';
 import type { ImageData, GeneratedImageResult, SuggestedTheme } from '../types';
 
@@ -37,6 +39,7 @@ const ProductPhotography: React.FC = () => {
     const [openSection, setOpenSection] = useState('product-image');
     const resultsRef = useRef<HTMLDivElement>(null);
     const { addToast } = useNotification();
+    const { brandIdentity } = useBrand();
 
     const handleToggleSection = (id: string) => {
         setOpenSection(prev => (prev === id ? '' : id));
@@ -100,7 +103,7 @@ const ProductPhotography: React.FC = () => {
         }
 
         try {
-            const ideas = await generateProductPoses(productImage, description, modelImage, theme);
+            const ideas = await generateProductPoses(productImage, description, modelImage, theme, brandIdentity);
             setStatus('Creating visuals...');
             const initialResults = ideas.map((idea, index) => ({
                 id: index,
@@ -131,51 +134,144 @@ const ProductPhotography: React.FC = () => {
             setStatus('Generate 6 Product Shots');
         }
     };
+
+    const handleUpscale = async (result: GeneratedImageResult) => {
+        if (!result.imageUrl) {
+            addToast('Image not available for upscaling.', 'error');
+            return;
+        }
+        setResults(prev => prev.map(r => r.id === result.id ? { ...r, isUpscaling: true } : r));
+        try {
+            const [header, base64Data] = result.imageUrl.split(',');
+            const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
+
+            const upscaledBase64 = await upscaleImage({ base64: base64Data, mimeType }, result.prompt);
+            setResults(prev => prev.map(r => r.id === result.id ? { ...r, imageUrl: `data:image/png;base64,${upscaledBase64}`, isUpscaling: false } : r));
+            addToast('Image upscaled to HD!', 'success');
+        } catch (error) {
+            console.error("Error upscaling image:", error);
+            addToast('Failed to upscale image. Please try again.', 'error');
+            setResults(prev => prev.map(r => r.id === result.id ? { ...r, isUpscaling: false } : r));
+        }
+    };
     
     const handleActionClick = async (type: 'caption' | 'video', result: GeneratedImageResult) => {
         if (!result.imageUrl) return;
         
-        const loaderBody = (text: string) => (
-            <div className="flex flex-col items-center gap-4">
-                <Loader />
-                <p className="text-slate-500 dark:text-slate-400">{text}</p>
+        const loaderBody = (text: string, subtext = "") => (
+            <div className="flex flex-col items-center gap-4 text-center">
+                <Loader size="lg"/>
+                <p className="text-slate-600 dark:text-slate-300 font-semibold">{text}</p>
+                {subtext && <p className="text-sm text-slate-500 dark:text-slate-400">{subtext}</p>}
             </div>
         );
 
-        const apiCall = type === 'caption' ? generateSocialCaption : generateVideoPrompt;
-        const title = type === 'caption' ? '✨ Social Media Caption' : '✨ Image-to-Video Prompt';
-        const loadingText = type === 'caption' ? 'Brewing up a caption...' : 'Analyzing motion...';
-
-        showModal(title, loaderBody(loadingText));
-
-        try {
-            const textContent = await apiCall(result.imageUrl, description, result.title);
-            const contentBody = (
-                <div>
-                    <div id="modal-text-content" className="whitespace-pre-wrap bg-slate-100 dark:bg-slate-700 p-4 rounded-xl text-slate-700 dark:text-slate-200 mb-4 font-mono text-sm max-h-60 overflow-y-auto">
-                        {textContent}
+        if (type === 'caption') {
+            showModal('✨ Social Media Caption', loaderBody('Brewing up a caption...'));
+            try {
+                const textContent = await generateSocialCaption(result.imageUrl, description, result.title, brandIdentity);
+                const contentBody = (
+                    <div>
+                        <div id="modal-text-content" className="whitespace-pre-wrap bg-slate-100 dark:bg-slate-700 p-4 rounded-xl text-slate-700 dark:text-slate-200 mb-4 font-mono text-sm max-h-60 overflow-y-auto">
+                            {textContent}
+                        </div>
+                        <button
+                            onClick={() => copyToClipboard(textContent)}
+                            className="w-full bg-cyan-500 text-white font-bold py-2 px-4 rounded-xl flex items-center justify-center hover:bg-cyan-600 focus:ring-4 focus:ring-cyan-500/50"
+                        >
+                            <Icon name="copy" className="w-4 h-4 mr-2"/>
+                            Copy Text
+                        </button>
                     </div>
-                    <button
-                        onClick={() => copyToClipboard(textContent)}
-                        className="w-full bg-cyan-500 text-white font-bold py-2 px-4 rounded-xl flex items-center justify-center hover:bg-cyan-600 focus:ring-4 focus:ring-cyan-500/50"
-                    >
-                        <Icon name="copy" className="w-4 h-4 mr-2"/>
-                        Copy Text
-                    </button>
-                </div>
-            );
-            showModal(title, contentBody);
-        } catch (error) {
-            console.error(`Error generating ${type}:`, error);
-            addToast(`Failed to create ${type}. Please try again.`, 'error');
-            setIsModalOpen(false);
+                );
+                showModal('✨ Social Media Caption', contentBody);
+            } catch (error) {
+                console.error('Error generating caption:', error);
+                addToast('Failed to create caption. Please try again.', 'error');
+                setIsModalOpen(false);
+            }
+        } else if (type === 'video') {
+            showModal('🎬 Generate Cinematic Video', loaderBody('Checking API key status...'));
+            
+            try {
+                // @ts-ignore
+                if (!(await window.aistudio.hasSelectedApiKey())) {
+                     const apiKeySelectionBody = (
+                        <div className="text-center">
+                            <p className="mb-4 text-slate-600 dark:text-slate-400">
+                               Video generation requires a Gemini API key. Please select a project with an enabled API key to proceed.
+                            </p>
+                             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-sm text-cyan-500 hover:underline mb-6 block">Learn more about billing.</a>
+                            <button
+                                onClick={async () => {
+                                    // @ts-ignore
+                                    await window.aistudio.openSelectKey();
+                                    setIsModalOpen(false);
+                                    addToast('API Key selected. Please try generating the video again.', 'info');
+                                }}
+                                className="w-full bg-cyan-500 text-white font-bold py-2 px-4 rounded-xl flex items-center justify-center hover:bg-cyan-600 focus:ring-4 focus:ring-cyan-500/50"
+                            >
+                                Select API Key
+                            </button>
+                        </div>
+                    );
+                    showModal('API Key Required', apiKeySelectionBody);
+                    return;
+                }
+
+                showModal('🎬 Generate Cinematic Video', loaderBody('Brewing your video masterpiece...', 'This can take a minute or two. Please wait!'));
+                
+                const videoUrl = await generateVideoFromImage(result.imageUrl, description, result.title);
+                
+                const videoBody = (
+                    <div>
+                        <video controls autoPlay loop src={videoUrl} className="w-full rounded-xl mb-4" />
+                         <a 
+                            href={videoUrl} 
+                            download={`aisthetic_video_${result.title.replace(/\s+/g, '_')}.mp4`}
+                            className="w-full bg-cyan-500 text-white font-bold py-2 px-4 rounded-xl flex items-center justify-center hover:bg-cyan-600 focus:ring-4 focus:ring-cyan-500/50"
+                        >
+                            <Icon name="download" className="w-4 h-4 mr-2"/>
+                            Download Video
+                        </a>
+                    </div>
+                );
+                showModal('🎬 Video Generation Complete!', videoBody);
+
+            } catch (error: any) {
+                console.error('Error generating video:', error);
+                let errorMessage = 'Failed to create video. Please try again.';
+                if (error?.message?.includes('Requested entity was not found')) {
+                    errorMessage = 'API Key is invalid. Please select a different one.';
+                     const retryBody = (
+                        <div className="text-center">
+                            <p className="mb-4 text-red-600 dark:text-red-400">{errorMessage}</p>
+                            <button
+                                onClick={async () => {
+                                    // @ts-ignore
+                                    await window.aistudio.openSelectKey();
+                                    setIsModalOpen(false);
+                                    addToast('API Key selected. Please try generating the video again.', 'info');
+                                }}
+                                className="w-full bg-cyan-500 text-white font-bold py-2 px-4 rounded-xl flex items-center justify-center hover:bg-cyan-600 focus:ring-4 focus:ring-cyan-500/50"
+                            >
+                                Select a Different API Key
+                            </button>
+                        </div>
+                    );
+                    showModal('API Key Error', retryBody);
+                } else {
+                    addToast(errorMessage, 'error');
+                    setIsModalOpen(false);
+                }
+            }
         }
     };
     
     return (
       <>
         <main className="flex flex-col lg:flex-row gap-8">
-            <div className="bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-3xl shadow-xl dark:shadow-slate-900/50 p-6 w-full lg:w-1/3 lg:max-w-md flex-shrink-0 self-start">
+            <div className="bg-white/70 dark:bg-slate-900/50 backdrop-blur-lg border border-slate-200/80 dark:border-slate-800/80 rounded-3xl shadow-2xl shadow-slate-600/10 dark:shadow-black/20 p-6 w-full lg:w-1/3 lg:max-w-md flex-shrink-0 self-start">
                 <div className="flex flex-col">
                      <Accordion
                         id="product-image"
@@ -277,7 +373,10 @@ const ProductPhotography: React.FC = () => {
                     {results.length > 0 ? (
                         results.map((r, i) => (
                             <ResultCard key={r.id} result={r} index={i}>
-                                <button onClick={() => handleActionClick('video', r)} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Create Video Prompt">
+                                <button onClick={() => handleUpscale(r)} disabled={r.isUpscaling || r.isLoading} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md disabled:opacity-50" title="Tingkatkan ke HD">
+                                    <Icon name="wand" className="h-5 w-5" />
+                                </button>
+                                <button onClick={() => handleActionClick('video', r)} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Generate Cinematic Video">
                                     <Icon name="video" className="h-5 w-5" />
                                 </button>
                                 <button onClick={() => handleActionClick('caption', r)} className="bg-white/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-2 rounded-full hover:bg-white dark:hover:bg-slate-700 hover:text-cyan-500 backdrop-blur-sm shadow-md" title="Create Caption">
@@ -290,7 +389,7 @@ const ProductPhotography: React.FC = () => {
                         ))
                     ) : (
                         Array.from({ length: 6 }).map((_, i) => (
-                           <div key={i} className="bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-lg p-4 flex flex-col justify-center items-center aspect-square animate-pulse">
+                           <div key={i} className="bg-white/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-lg p-4 flex flex-col justify-center items-center aspect-square animate-pulse">
                                <Icon name="wand" className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-2" />
                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mt-2"></div>

@@ -4,6 +4,7 @@ import { Icon } from './icons';
 import type { IconName } from './icons';
 import { compressImage } from '../utils/imageUtils';
 import { Loader } from './Loader';
+import { useNotification } from '../contexts/NotificationContext';
 
 interface ImageUploaderProps {
     onImageUpload: (imageData: ImageData | null) => void;
@@ -17,6 +18,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, ico
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { addToast } = useNotification();
 
     const handleFile = useCallback(async (file: File) => {
         if (file && file.type.startsWith('image/')) {
@@ -32,14 +34,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, ico
                 onImageUpload(compressedImageData);
             } catch (error) {
                 console.error("Error compressing image:", error);
-                // Optionally show a toast notification here
+                addToast('Gagal mengoptimalkan gambar. Silakan coba file lain.', 'error');
                 onImageUpload(null);
                 setPreview(null);
             } finally {
                 setIsProcessing(false);
             }
         }
-    }, [onImageUpload]);
+    }, [onImageUpload, addToast]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
